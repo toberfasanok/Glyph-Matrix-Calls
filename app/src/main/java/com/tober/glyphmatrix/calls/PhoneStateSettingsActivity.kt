@@ -1,0 +1,48 @@
+package com.tober.glyphmatrix.calls
+
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
+
+class PhoneStateSettingsActivity : ComponentActivity() {
+    private lateinit var requestPhoneStateLauncher: ActivityResultLauncher<String>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        requestPhoneStateLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (granted) {
+                setResult(RESULT_OK)
+                finish()
+                return@registerForActivityResult
+            }
+
+            val shouldShowRationale = ActivityCompat.shouldShowRequestPermissionRationale(
+                this, Manifest.permission.READ_PHONE_STATE
+            )
+
+            if (!shouldShowRationale) {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                }
+                startActivity(intent)
+
+                setResult(RESULT_CANCELED)
+                finish()
+            } else {
+                setResult(RESULT_CANCELED)
+                finish()
+            }
+        }
+
+        requestPhoneStateLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+    }
+}
