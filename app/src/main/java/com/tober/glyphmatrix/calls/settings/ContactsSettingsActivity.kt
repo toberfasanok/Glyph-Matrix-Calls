@@ -1,7 +1,7 @@
 package com.tober.glyphmatrix.calls
 
-import android.Manifest
 import android.content.Intent
+import android.Manifest
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings

@@ -8,12 +8,12 @@ This is a tool for the Nothing Phone 3 Glyph Matrix
 
 ## General
 
-This app displays custom glyphs for incoming calls and during calls
+This app displays custom glyphs for calls
 
 ## Usage
 
 Download the APK (app.apk) and customize
 - Glyph Animation
-- Default Glyph for Incoming Calls
+- Default Glyph for Calls
 - Glyphs for Specific Contacts
 - Ignored Contacts

@@ -44,7 +44,7 @@
             android:exported="false" />
 
         <service
-            android:name=".CallService"
+            android:name=".ScreeningService"
             android:exported="false"
             android:permission="android.permission.BIND_SCREENING_SERVICE">
             <intent-filter>

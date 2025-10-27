@@ -92,7 +92,7 @@ class GlyphMatrixService : Service() {
         val active = preferences.getBoolean(Constants.PREFERENCES_ACTIVE, true)
         if (!active) return START_REDELIVER_INTENT
 
-        if (intent?.action == Constants.ACTION_ON_INCOMING_CALL) {
+        if (intent?.action == Constants.ACTION_ON_CALL) {
             val contact = intent.getStringExtra(Constants.CALL_EXTRA_CONTACT)
 
             if (!contact.isNullOrBlank()) {

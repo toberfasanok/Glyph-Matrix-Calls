@@ -1,9 +1,9 @@
 package com.tober.glyphmatrix.calls
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.Manifest
 import android.net.Uri
 import android.provider.ContactsContract
 import android.telecom.Call
@@ -12,7 +12,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
 
-class CallService : CallScreeningService() {
+class ScreeningService : CallScreeningService() {
     private val tag = "Call Service"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -42,10 +42,10 @@ class CallService : CallScreeningService() {
 
         if (hasContacts) {
             scope.launch {
-                val contact = getContact(this@CallService, number) ?: number
+                val contact = getContact(this@ScreeningService, number) ?: number
 
-                val intent = Intent(this@CallService, GlyphMatrixService::class.java).apply {
-                    action = Constants.ACTION_ON_INCOMING_CALL
+                val intent = Intent(this@ScreeningService, GlyphMatrixService::class.java).apply {
+                    action = Constants.ACTION_ON_CALL
                     putExtra(Constants.CALL_EXTRA_CONTACT, contact)
                 }
 
@@ -56,8 +56,8 @@ class CallService : CallScreeningService() {
         } else {
             val contact = number
 
-            val intent = Intent(this@CallService, GlyphMatrixService::class.java).apply {
-                action = Constants.ACTION_ON_INCOMING_CALL
+            val intent = Intent(this@ScreeningService, GlyphMatrixService::class.java).apply {
+                action = Constants.ACTION_ON_CALL
                 putExtra(Constants.CALL_EXTRA_CONTACT, contact)
             }
 
