@@ -87,8 +87,8 @@ class MainActivity : ComponentActivity() {
     private val tag = "Main Activity"
 
     private var hasCallScreeningAccess by mutableStateOf(false)
-    private var hasContactsAccess by mutableStateOf(false)
     private var hasPhoneStateAccess by mutableStateOf(false)
+    private var hasContactsAccess by mutableStateOf(false)
 
     private lateinit var preferences: SharedPreferences
 
@@ -115,8 +115,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         hasCallScreeningAccess = getCallScreeningAccess()
-        hasContactsAccess = getContactsAccess()
         hasPhoneStateAccess = getPhoneStateAccess()
+        hasContactsAccess = getContactsAccess()
 
         preferences = getSharedPreferences(Constants.PREFERENCES_NAME, MODE_PRIVATE)
 
@@ -198,7 +198,7 @@ class MainActivity : ComponentActivity() {
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.Top
                     ) {
-                        if (!hasCallScreeningAccess || !hasContactsAccess || !hasPhoneStateAccess) {
+                        if (!hasCallScreeningAccess || !hasPhoneStateAccess || !hasContactsAccess) {
                             Column(modifier = Modifier.padding(8.dp)) {
                                 Text(text = "Call screening access, contacts access and phone state access is required for the app to detect incoming calls and show glyphs automatically.")
 
@@ -613,8 +613,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         updateCallScreeningAccess()
-        updateContactsAccess()
         updatePhoneStateAccess()
+        updateContactsAccess()
     }
 
     override fun onDestroy() {
@@ -630,17 +630,6 @@ class MainActivity : ComponentActivity() {
         hasCallScreeningAccess = getCallScreeningAccess()
     }
 
-    private fun getContactsAccess(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.READ_CONTACTS
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun updateContactsAccess() {
-        hasContactsAccess = getContactsAccess()
-    }
-
     private fun getPhoneStateAccess(): Boolean {
         return ContextCompat.checkSelfPermission(
             this,
@@ -650,6 +639,17 @@ class MainActivity : ComponentActivity() {
 
     private fun updatePhoneStateAccess() {
         hasPhoneStateAccess = getPhoneStateAccess()
+    }
+
+    private fun getContactsAccess(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.READ_CONTACTS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun updateContactsAccess() {
+        hasContactsAccess = getContactsAccess()
     }
 
     private fun broadcastPreferencesUpdate() {

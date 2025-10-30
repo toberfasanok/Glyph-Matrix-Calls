@@ -1,5 +1,6 @@
 package com.tober.glyphmatrix.calls
 
+import android.annotation.SuppressLint
 import android.app.Service
 import android.content.ComponentName
 import android.content.Intent
@@ -10,6 +11,7 @@ import android.Manifest
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
@@ -58,6 +60,11 @@ class GlyphMatrixService : Service() {
     private val cx = (matrixSize - 1) / 2.0
     private val cy = (matrixSize - 1) / 2.0
     private val maxRadius = ceil(sqrt(cx * cx + cy * cy)).toInt()
+
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var lastRendered: IntArray? = null
+    private val resendTimeout = 1L
+    private var resendRunnable: Runnable? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -131,6 +138,8 @@ class GlyphMatrixService : Service() {
 
         Log.d(tag, "onDestroy")
 
+        stopRefresh()
+
         initialized = false
 
         if (telephonyRegistered) {
@@ -162,6 +171,8 @@ class GlyphMatrixService : Service() {
                 Log.e(tag, "Failed to close glyph matrix: $e")
             }
         }
+
+        stopRefresh()
 
         if (preferences.getBoolean(Constants.PREFERENCES_ANIMATE_GLYPHS, true)) {
             glyph?.let { g ->
@@ -246,13 +257,15 @@ class GlyphMatrixService : Service() {
             val speed = preferences.getLong(Constants.PREFERENCES_ANIMATE_SPEED, 10L).coerceAtLeast(1L)
 
             glyph?.let { g ->
-                showAnimated(g, speed)
+                showAnimated(g, speed) { startRefresh() }
             }
         }
         else {
             glyph?.let { g ->
                 showSimple(g)
             }
+
+            startRefresh()
         }
     }
 
@@ -271,13 +284,14 @@ class GlyphMatrixService : Service() {
             val frame = frameBuilder.addTop(image).build(this)
             val rendered = frame.render()
 
+            lastRendered = rendered
             glyphMatrixManager?.setAppMatrixFrame(rendered)
         } catch (e: Exception) {
             Log.e(tag, "Failed to show glyph: $e")
         }
     }
 
-    private fun showAnimated(glyph: Bitmap, speed: Long) {
+    private fun showAnimated(glyph: Bitmap, speed: Long, operation: () -> Unit) {
         val src = glyph.scale(matrixSize, matrixSize)
 
         var radius = 0
@@ -299,6 +313,8 @@ class GlyphMatrixService : Service() {
                         val frameBuilder = GlyphMatrixFrame.Builder()
                         val frame = frameBuilder.addTop(image).build(this@GlyphMatrixService)
                         val rendered = frame.render()
+
+                        lastRendered = rendered
                         glyphMatrixManager?.setAppMatrixFrame(rendered)
                     } catch (e: Exception) {
                         Log.e(tag, "Failed to show glyph: $e")
@@ -309,6 +325,7 @@ class GlyphMatrixService : Service() {
                     mainHandler.postDelayed(this, speed)
                 } else {
                     animationRunnable = null
+                    operation()
                 }
             }
         }
@@ -341,6 +358,8 @@ class GlyphMatrixService : Service() {
                         val frameBuilder = GlyphMatrixFrame.Builder()
                         val frame = frameBuilder.addTop(image).build(this@GlyphMatrixService)
                         val rendered = frame.render()
+
+                        lastRendered = rendered
                         glyphMatrixManager?.setAppMatrixFrame(rendered)
                     } catch (e: Exception) {
                         Log.e(tag, "Failed to show glyph: $e")
@@ -377,5 +396,62 @@ class GlyphMatrixService : Service() {
             }
         }
         return out
+    }
+
+    private fun startRefresh() {
+        stopRefresh()
+
+        setWakeLock()
+
+        val runnable = object : Runnable {
+            override fun run() {
+                try {
+                    lastRendered?.let { glyphMatrixManager?.setAppMatrixFrame(it) }
+                } catch (e: Exception) {
+                    Log.e(tag, "Failed periodic resend: $e")
+                }
+                mainHandler.postDelayed(this, resendTimeout)
+            }
+        }
+
+        resendRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    private fun stopRefresh() {
+        resendRunnable?.let { mainHandler.removeCallbacks(it) }
+        resendRunnable = null
+        releaseWakeLock()
+    }
+
+    @SuppressLint("WakelockTimeout")
+    private fun setWakeLock() {
+        try {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+
+            if (wakeLock == null) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "GlyphMatrixService:WakeLock").apply {
+                    setReferenceCounted(false)
+                }
+            }
+
+            if (!wakeLock!!.isHeld) {
+                wakeLock!!.acquire()
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to set wakelock: $e")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.let {
+                if (it.isHeld) it.release()
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to release wakelock: $e")
+        } finally {
+            wakeLock = null
+        }
     }
 }
