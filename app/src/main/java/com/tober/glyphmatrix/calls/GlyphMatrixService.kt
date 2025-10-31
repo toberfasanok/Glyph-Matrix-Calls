@@ -63,7 +63,7 @@ class GlyphMatrixService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastRendered: IntArray? = null
-    private val resendTimeout = 1L
+    private val resendTimeout = 5L
     private var resendRunnable: Runnable? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -165,14 +165,13 @@ class GlyphMatrixService : Service() {
 
         fun clear() {
             try {
+                stopRefresh()
                 glyph = null
                 glyphMatrixManager?.closeAppMatrix()
             } catch (e: Exception) {
                 Log.e(tag, "Failed to close glyph matrix: $e")
             }
         }
-
-        stopRefresh()
 
         if (preferences.getBoolean(Constants.PREFERENCES_ANIMATE_GLYPHS, true)) {
             glyph?.let { g ->
@@ -256,16 +255,18 @@ class GlyphMatrixService : Service() {
         if (preferences.getBoolean(Constants.PREFERENCES_ANIMATE_GLYPHS, true)) {
             val speed = preferences.getLong(Constants.PREFERENCES_ANIMATE_SPEED, 10L).coerceAtLeast(1L)
 
+            startRefresh()
+
             glyph?.let { g ->
-                showAnimated(g, speed) { startRefresh() }
+                showAnimated(g, speed) {}
             }
         }
         else {
+            startRefresh()
+
             glyph?.let { g ->
                 showSimple(g)
             }
-
-            startRefresh()
         }
     }
 

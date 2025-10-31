@@ -14,6 +14,5 @@ object Constants {
 
     const val CALL_EXTRA_CONTACT = "contact"
 
-    const val ACTION_ON_PREFERENCES_UPDATE = "com.tober.glyphmatrix.calls.ACTION_ON_PREFERENCES_UPDATE"
     const val ACTION_ON_CALL = "com.tober.glyphmatrix.calls.ACTION_ON_CALL"
 }

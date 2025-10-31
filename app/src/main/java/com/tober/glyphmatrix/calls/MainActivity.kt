@@ -204,7 +204,7 @@ class MainActivity : ComponentActivity() {
 
                                 Spacer(modifier = Modifier.height(25.dp))
 
-                                Text(text = "1. Allow Restricted Settings:", fontWeight = FontWeight.Bold)
+                                Text(text = "Allow Restricted Settings:", fontWeight = FontWeight.Bold)
                                 Text(text = "App Info -> ⋮ (top right) -> Allow Restricted Settings")
 
                                 Button(
@@ -220,40 +220,46 @@ class MainActivity : ComponentActivity() {
                                     Text(text = "Open App Info")
                                 }
 
-                                Spacer(modifier = Modifier.height(25.dp))
+                                if (!hasCallScreeningAccess) {
+                                    Spacer(modifier = Modifier.height(25.dp))
 
-                                Text(text = "2. Allow Call Screening Access", fontWeight = FontWeight.Bold)
-                                Text(text = "Glyph Matrix Calls -> Set as default")
+                                    Text(text = "Allow Call Screening Access", fontWeight = FontWeight.Bold)
+                                    Text(text = "Glyph Matrix Calls -> Set as default")
 
-                                Button(
-                                    onClick = { startActivity(Intent(this@MainActivity, CallScreeningSettingsActivity::class.java)) },
-                                    modifier = Modifier.padding(top = 12.dp)
-                                ) {
-                                    Text(text = "Open Call Screening Access Settings")
+                                    Button(
+                                        onClick = { startActivity(Intent(this@MainActivity, CallScreeningSettingsActivity::class.java)) },
+                                        modifier = Modifier.padding(top = 12.dp)
+                                    ) {
+                                        Text(text = "Open Call Screening Access Settings")
+                                    }
                                 }
 
-                                Spacer(modifier = Modifier.height(25.dp))
+                                if (!hasPhoneStateAccess) {
+                                    Spacer(modifier = Modifier.height(25.dp))
 
-                                Text(text = "3. Allow Contacts Access", fontWeight = FontWeight.Bold)
-                                Text(text = "Contacts Access -> Allow")
+                                    Text(text = "Allow Phone State Access", fontWeight = FontWeight.Bold)
+                                    Text(text = "Phone State Access -> Allow")
 
-                                Button(
-                                    onClick = { startActivity(Intent(this@MainActivity, ContactsSettingsActivity::class.java)) },
-                                    modifier = Modifier.padding(top = 12.dp)
-                                ) {
-                                    Text(text = "Open Contacts Access Settings")
+                                    Button(
+                                        onClick = { startActivity(Intent(this@MainActivity, PhoneStateSettingsActivity::class.java)) },
+                                        modifier = Modifier.padding(top = 12.dp)
+                                    ) {
+                                        Text(text = "Open Phone State Access Settings")
+                                    }
                                 }
 
-                                Spacer(modifier = Modifier.height(25.dp))
+                                if (!hasContactsAccess) {
+                                    Spacer(modifier = Modifier.height(25.dp))
 
-                                Text(text = "4. Allow Phone State Access", fontWeight = FontWeight.Bold)
-                                Text(text = "Phone State Access -> Allow")
+                                    Text(text = "Allow Contacts Access", fontWeight = FontWeight.Bold)
+                                    Text(text = "Contacts Access -> Allow")
 
-                                Button(
-                                    onClick = { startActivity(Intent(this@MainActivity, PhoneStateSettingsActivity::class.java)) },
-                                    modifier = Modifier.padding(top = 12.dp)
-                                ) {
-                                    Text(text = "Open Phone State Access Settings")
+                                    Button(
+                                        onClick = { startActivity(Intent(this@MainActivity, ContactsSettingsActivity::class.java)) },
+                                        modifier = Modifier.padding(top = 12.dp)
+                                    ) {
+                                        Text(text = "Open Contacts Access Settings")
+                                    }
                                 }
                             }
                         } else {
@@ -274,7 +280,6 @@ class MainActivity : ComponentActivity() {
                                         onCheckedChange = { checked ->
                                             active = checked
                                             preferences.edit { putBoolean(Constants.PREFERENCES_ACTIVE, checked) }
-                                            broadcastPreferencesUpdate()
                                         },
                                         colors = SwitchDefaults.colors(
                                             checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
@@ -307,7 +312,6 @@ class MainActivity : ComponentActivity() {
                                         onCheckedChange = { checked ->
                                             animateGlyphs = checked
                                             preferences.edit { putBoolean(Constants.PREFERENCES_ANIMATE_GLYPHS, checked) }
-                                            broadcastPreferencesUpdate()
                                         },
                                         colors = SwitchDefaults.colors(
                                             checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
@@ -338,7 +342,6 @@ class MainActivity : ComponentActivity() {
                                         IconButton(onClick = {
                                             val animateSpeed = animateSpeed.toLongOrNull() ?: 10L
                                             preferences.edit { putLong(Constants.PREFERENCES_ANIMATE_SPEED, animateSpeed) }
-                                            broadcastPreferencesUpdate()
                                             toast("Animation speed saved")
                                         }) {
                                             Icon(imageVector = Icons.Filled.Save, contentDescription = "Save")
@@ -347,7 +350,6 @@ class MainActivity : ComponentActivity() {
                                         IconButton(onClick = {
                                             animateSpeed = "10"
                                             preferences.edit { putLong(Constants.PREFERENCES_ANIMATE_SPEED, 10L) }
-                                            broadcastPreferencesUpdate()
                                             toast("Animation speed reset")
                                         }) {
                                             Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Reset")
@@ -652,32 +654,6 @@ class MainActivity : ComponentActivity() {
         hasContactsAccess = getContactsAccess()
     }
 
-    private fun broadcastPreferencesUpdate() {
-        val preferences = getSharedPreferences(Constants.PREFERENCES_NAME, MODE_PRIVATE)
-
-        val active = preferences.getBoolean(Constants.PREFERENCES_ACTIVE, true)
-
-        val animateGlyphs = preferences.getBoolean(Constants.PREFERENCES_ANIMATE_GLYPHS, true)
-        val animateSpeed = preferences.getLong(Constants.PREFERENCES_ANIMATE_SPEED, 10L)
-
-        val defaultGlyph = preferences.getString(Constants.PREFERENCES_DEFAULT_GLYPH, null)
-        val contactGlyphs = preferences.getString(Constants.PREFERENCES_CONTACT_GLYPHS, null)
-        val ignoredContacts = preferences.getString(Constants.PREFERENCES_IGNORED_CONTACTS, null)
-
-        val intent = Intent(Constants.ACTION_ON_PREFERENCES_UPDATE).apply {
-            putExtra(Constants.PREFERENCES_ACTIVE, active)
-
-            putExtra(Constants.PREFERENCES_ANIMATE_GLYPHS, animateGlyphs)
-            putExtra(Constants.PREFERENCES_ANIMATE_SPEED, animateSpeed)
-
-            putExtra(Constants.PREFERENCES_DEFAULT_GLYPH, defaultGlyph)
-            putExtra(Constants.PREFERENCES_CONTACT_GLYPHS, contactGlyphs)
-            putExtra(Constants.PREFERENCES_IGNORED_CONTACTS, ignoredContacts)
-        }
-
-        sendBroadcast(intent)
-    }
-
     private fun readContactGlyphMappings(preference: String): MutableList<ContactGlyph> {
         val preferences = getSharedPreferences(Constants.PREFERENCES_NAME, MODE_PRIVATE)
         val raw = preferences.getString(preference, null) ?: return mutableListOf()
@@ -715,8 +691,6 @@ class MainActivity : ComponentActivity() {
 
         val preferences = getSharedPreferences(Constants.PREFERENCES_NAME, MODE_PRIVATE)
         preferences.edit { putString(preference, arr.toString()) }
-
-        broadcastPreferencesUpdate()
     }
 
     private fun writeContactGlyphs(list: List<ContactGlyph>) {
@@ -750,8 +724,6 @@ class MainActivity : ComponentActivity() {
             defaultGlyph = newFile.absolutePath
 
             toast("Default glyph saved")
-
-            broadcastPreferencesUpdate()
         }
 
         loadImageLauncher.launch(arrayOf("image/*"))
@@ -766,8 +738,6 @@ class MainActivity : ComponentActivity() {
         defaultGlyph = null
 
         toast("Default glyph removed")
-
-        broadcastPreferencesUpdate()
     }
 
     private fun loadNewContactGlyph() {
