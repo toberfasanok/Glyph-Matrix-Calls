@@ -63,7 +63,7 @@ class GlyphMatrixService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastRendered: IntArray? = null
-    private val resendTimeout = 5L
+    private val resendTimeout = 1L
     private var resendRunnable: Runnable? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -139,6 +139,10 @@ class GlyphMatrixService : Service() {
         Log.d(tag, "onDestroy")
 
         stopRefresh()
+        releaseWakeLock()
+
+        glyph = null
+        glyphMatrixManager?.closeAppMatrix()
 
         initialized = false
 
@@ -165,13 +169,16 @@ class GlyphMatrixService : Service() {
 
         fun clear() {
             try {
-                stopRefresh()
                 glyph = null
                 glyphMatrixManager?.closeAppMatrix()
+                releaseWakeLock()
             } catch (e: Exception) {
                 Log.e(tag, "Failed to close glyph matrix: $e")
             }
         }
+
+        stopRefresh()
+        lastRendered = null
 
         if (preferences.getBoolean(Constants.PREFERENCES_ANIMATE_GLYPHS, true)) {
             glyph?.let { g ->
@@ -252,21 +259,35 @@ class GlyphMatrixService : Service() {
 
         if (glyph == null) return
 
+        val objBuilder = GlyphMatrixObject.Builder()
+        val image = objBuilder
+            .setImageSource(glyph)
+            .setScale(100)
+            .setOrientation(0)
+            .setPosition(0, 0)
+            .setReverse(false)
+            .build()
+
+        val frameBuilder = GlyphMatrixFrame.Builder()
+        val frame = frameBuilder.addTop(image).build(this@GlyphMatrixService)
+        val rendered = frame.render()
+
+        lastRendered = rendered
+
         if (preferences.getBoolean(Constants.PREFERENCES_ANIMATE_GLYPHS, true)) {
             val speed = preferences.getLong(Constants.PREFERENCES_ANIMATE_SPEED, 10L).coerceAtLeast(1L)
 
-            startRefresh()
-
             glyph?.let { g ->
-                showAnimated(g, speed) {}
+                showAnimated(g, speed) { setWakeLock(); startRefresh() }
             }
         }
         else {
-            startRefresh()
-
             glyph?.let { g ->
                 showSimple(g)
             }
+
+            setWakeLock()
+            startRefresh()
         }
     }
 
@@ -285,7 +306,6 @@ class GlyphMatrixService : Service() {
             val frame = frameBuilder.addTop(image).build(this)
             val rendered = frame.render()
 
-            lastRendered = rendered
             glyphMatrixManager?.setAppMatrixFrame(rendered)
         } catch (e: Exception) {
             Log.e(tag, "Failed to show glyph: $e")
@@ -315,7 +335,6 @@ class GlyphMatrixService : Service() {
                         val frame = frameBuilder.addTop(image).build(this@GlyphMatrixService)
                         val rendered = frame.render()
 
-                        lastRendered = rendered
                         glyphMatrixManager?.setAppMatrixFrame(rendered)
                     } catch (e: Exception) {
                         Log.e(tag, "Failed to show glyph: $e")
@@ -360,7 +379,6 @@ class GlyphMatrixService : Service() {
                         val frame = frameBuilder.addTop(image).build(this@GlyphMatrixService)
                         val rendered = frame.render()
 
-                        lastRendered = rendered
                         glyphMatrixManager?.setAppMatrixFrame(rendered)
                     } catch (e: Exception) {
                         Log.e(tag, "Failed to show glyph: $e")
@@ -402,8 +420,6 @@ class GlyphMatrixService : Service() {
     private fun startRefresh() {
         stopRefresh()
 
-        setWakeLock()
-
         val runnable = object : Runnable {
             override fun run() {
                 try {
@@ -422,11 +438,12 @@ class GlyphMatrixService : Service() {
     private fun stopRefresh() {
         resendRunnable?.let { mainHandler.removeCallbacks(it) }
         resendRunnable = null
-        releaseWakeLock()
     }
 
     @SuppressLint("WakelockTimeout")
     private fun setWakeLock() {
+        releaseWakeLock()
+
         try {
             val pm = getSystemService(POWER_SERVICE) as PowerManager
 
