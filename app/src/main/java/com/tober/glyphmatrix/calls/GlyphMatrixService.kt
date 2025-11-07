@@ -3,15 +3,18 @@ package com.tober.glyphmatrix.calls
 import android.annotation.SuppressLint
 import android.app.Service
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.Manifest
+import android.net.Uri
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.ContactsContract
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
@@ -30,10 +33,13 @@ import com.nothing.ketchum.GlyphMatrixObject
 import java.io.File
 import kotlin.math.ceil
 import kotlin.math.sqrt
+import kotlinx.coroutines.*
 import org.json.JSONArray
 
 class GlyphMatrixService : Service() {
     private val tag = "Glyph Matrix Service"
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var telephonyRegistered = false
     private lateinit var telephonyManager: TelephonyManager
@@ -100,43 +106,87 @@ class GlyphMatrixService : Service() {
         if (!active) return START_REDELIVER_INTENT
 
         if (intent?.action == Constants.ACTION_ON_CALL) {
-            val contact = intent.getStringExtra(Constants.CALL_EXTRA_CONTACT)
+            val number = intent.getStringExtra(Constants.CALL_EXTRA_NUMBER)
 
-            if (!contact.isNullOrBlank()) {
-                val ignoredContacts = preferences.getString(Constants.PREFERENCES_IGNORED_CONTACTS, null)
-                if (!ignoredContacts.isNullOrBlank()) {
-                    try {
-                        val arr = JSONArray(ignoredContacts)
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.getJSONObject(i)
-                            val ignoredContact = obj.optString("contact")
-                            if (ignoredContact == contact) {
-                                return START_REDELIVER_INTENT
-                            }
-                        }
-                    } catch (_: Throwable) {}
+            val hasReadContactsPermission = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (hasReadContactsPermission) {
+                scope.launch {
+                    val contact = getContact(this@GlyphMatrixService, number) ?: number
+
+                    Log.d(tag, "Resolved contact: $contact")
+
+                    afterStartCommand(contact)
                 }
+            } else {
+                val contact = number
+
+                Log.d(tag, "Resolved contact: $contact")
+
+                afterStartCommand(contact)
             }
-
-            clearRunnable?.let { mainHandler.removeCallbacks(it) }
-            clearRunnable = null
-
-            animationRunnable?.let { mainHandler.removeCallbacks(it) }
-            animationRunnable = null
-
-            glyphMatrixManager?.closeAppMatrix()
-
-            if (initialized) onGlyph(contact)
-            else onInit { onGlyph(contact) }
         }
 
         return START_REDELIVER_INTENT
+    }
+
+    private fun afterStartCommand(contact: String?) {
+        val preferences = getSharedPreferences(Constants.PREFERENCES_NAME, MODE_PRIVATE)
+
+        if (!contact.isNullOrBlank()) {
+            val ignoredContacts = preferences.getString(Constants.PREFERENCES_IGNORED_CONTACTS, null)
+            if (!ignoredContacts.isNullOrBlank()) {
+                try {
+                    val arr = JSONArray(ignoredContacts)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        val ignoredContact = obj.optString("contact")
+                        if (ignoredContact == contact) {
+                            return
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        clearRunnable?.let { mainHandler.removeCallbacks(it) }
+        clearRunnable = null
+
+        animationRunnable?.let { mainHandler.removeCallbacks(it) }
+        animationRunnable = null
+
+        glyphMatrixManager?.closeAppMatrix()
+
+        if (initialized) onGlyph(contact)
+        else onInit { onGlyph(contact) }
+    }
+
+    private fun getContact(context: Context, number: String?): String? {
+        val uri: Uri = Uri.withAppendedPath(
+            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+            Uri.encode(number)
+        )
+
+        val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
+
+        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val i = cursor.getColumnIndexOrThrow(ContactsContract.PhoneLookup.DISPLAY_NAME)
+                return cursor.getString(i)
+            }
+        }
+
+        return number
     }
 
     override fun onDestroy() {
         super.onDestroy()
 
         Log.d(tag, "onDestroy")
+
+        scope.cancel()
 
         stopRefresh()
         releaseWakeLock()
